@@ -1,0 +1,129 @@
+#---------------------------------------------------------------------------------------------#
+#                                     Configurações iniciais                                  #
+#---------------------------------------------------------------------------------------------#
+library(MASS)
+library(dplyr)
+library(neuralnet)
+?Boston
+head(Boston)
+data <- Boston
+class(data)
+
+#---------------------------------------------------------------------------------------------#
+#                        Verifica se há valores missing nalguma variável                      #
+#---------------------------------------------------------------------------------------------#
+sum(apply(data,2,function(x){sum(is.na(x))}))
+
+#---------------------------------------------------------------------------------------------#
+#                           Split dos dados em bases de treino e teste                        #
+#---------------------------------------------------------------------------------------------#
+index  <- sample(1:nrow(data),round(0.7*nrow(data)))
+
+treino <- data[index,]
+str(treino)
+
+teste  <- data[-index,]
+str(teste)
+
+#---------------------------------------------------------------------------------------------#
+#                                    Preparação dos dados                                     #
+#---------------------------------------------------------------------------------------------#
+
+# Uma boa prática é fazer a normalização dos dados antes de realizar
+# o treinamento do modelo por meio do algoritmo de redes neurais.
+
+# Identifica o máximo de cada variável
+maxs <- apply(data,2,max)
+
+# Identifica o mínimo de cada variável 
+mins <- apply(data,2,min)
+
+# Mudando a escala dos dados de acordo com o mín-max
+scaled <- as.data.frame(scale(data,center=mins,scale=maxs-mins))
+
+treino_ <- scaled[index,]
+str(treino_)
+
+teste_  <- scaled[-index,]
+str(teste_)
+
+#---------------------------------------------------------------------------------------------#
+#                                         Parâmetros                                          #
+#---------------------------------------------------------------------------------------------#
+
+n  <- names(treino_)
+f  <- as.formula(paste("medv ~",paste(n[!n %in% "medv"],collapse=" + ")))
+nn <- neuralnet(f,data=treino_,hidden=c(5,3,3),linear.output = T) 
+
+# NOTA: por alguma razão, fórmulas do tipo 'y~.' não são aceitas pela função 'neuralnet()'
+# É preciso, primeiro, escrever a fórmula e então passar ela como um argumento no ajuste.
+
+# O argumento 'hidden' aceita um vetor com o número de neuronios para cada camada oculta.
+
+# O argumento 'linear.output' é usado pra especificar se queremos fazer um modelo do tipo
+# regressão, 'linear.output=T', ou do tipo classificação, 'linear.output=F'.
+
+#---------------------------------------------------------------------------------------------#
+#                                             Plot                                            #
+#---------------------------------------------------------------------------------------------#
+
+# A função 'plot' fornece uma representação gráfica do modelo com os pesos em cada conexão.
+plot(nn)
+
+# Podemos ver por meio do gráfico que na camada de entrada, temos 13 neurônios, ou seja, um
+# para cada variável preditora. 
+
+# Após a camada de entrada, temos duas camadas ocultas, cujas quantidades de neurônios foram
+# especificadas por meio do comando 'hidden=c(5,3)', ou seja, a primeira camada oculta tem 5
+# neurônios e a segunda camada oculta tem 3 neurônios.
+
+# Por último temos o neurônio de saída, com a variável target.
+
+# As linhas pretas mostram as conexões entre cada camada e os pesos em cada conexão, enquan-
+# to que as linhas azuis mostram os termos de viés adicionados em cada passo. O Viés pode 
+# ser interpretado como um tipo de intercepto, como nos modelos de regressão lineares.
+
+#---------------------------------------------------------------------------------------------#
+#                            Fazendo previsões usando a rede neural                           #
+#---------------------------------------------------------------------------------------------#
+
+# Realizando a previsão e comparando com a variável resposta original. 
+# Faz o cálculo da estatística R2, para avaliar a qualidade do modelo.
+# Lembrando que a tabela teste_ está com as variáveis normalizadas, portanto, é válida a 
+# comparação. 
+
+pr.nn        <- compute(nn, teste_[,1:13])
+pred.nn      <- as.vector(pr.nn$net.result)
+teste_$pr.nn <- pred.nn
+cor(teste_$medv,teste_$pr.nn)^2
+
+# É importante lembrar que o output da rede neural será uma predição normalizada, então pre-
+# cisamos mudar de escala os seus valores, para que possamos comparar os resultados.
+# Os valores desnormalizados serão comparados na tabela 'teste', que contém as variáveis em
+# seu estado original
+
+pr.nn_   <- pr.nn$net.result*(max(data$medv)-min(data$medv))+min(data$medv)
+pred.nn_ <- as.vector(pr.nn_)
+teste$pr.nn <- pred.nn_
+glimpse(teste)
+cor(teste$medv,teste$pr.nn)
+
+# Cálculo do erro médio (MSE)
+mse.nn <- sum((teste$medv - teste$pr.nn)^2)/nrow(teste)
+mse.nn
+
+#---------------------------------------------------------------------------------------------#
+#                    Fazendo um modelo de regressão linear para comparação                    #
+#---------------------------------------------------------------------------------------------#
+glimpse(treino)
+glimpse(teste)
+
+lr          <- lm(medv ~.,data=treino)
+pr.lr       <- predict(lr,teste)
+teste$pr.lr <- pr.lr
+glimpse(teste)
+cor(teste$medv,teste$pr.lr)
+
+# Cálculo do erro médio (MSE)
+mse.lr <- sum((teste$medv - teste$pr.lr)^2)/nrow(teste)
+mse.lr
