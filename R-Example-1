@@ -29,8 +29,8 @@ str(teste)
 #                                    Preparação dos dados                                     #
 #---------------------------------------------------------------------------------------------#
 
-# Uma boa prática é fazer a normalização dos dados antes de realizar
-# o treinamento do modelo por meio do algoritmo de redes neurais.
+# Uma boa prática é fazer a normalização dos dados antes de realizar o treinamento do modelo 
+# por meio do algoritmo de redes neurais.
 
 # Identifica o máximo de cada variável
 maxs <- apply(data,2,max)
